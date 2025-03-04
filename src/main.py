@@ -6,6 +6,7 @@ import genesis as gs
 
 BALL_RADIUS = 0.1
 TARGET_SIZE = (0.01, 1.0, 1.0)
+TARGET_DISTANCE = 2.0
 
 
 def main():
@@ -42,17 +43,16 @@ def main():
     ball = scene.add_entity(
         gs.morphs.Sphere(
             radius=BALL_RADIUS,
+            pos=(0.4, -0.1, BALL_RADIUS),
             collision=True,
-            # pos=(0.4, -0.1, 0.1),
-            # pos=(1.0, 0.4, 5.0),
-            pos=(1.0, 0.51 + TARGET_SIZE[2] / 2, 5.0),
+            fixed=False
         ),
     )
 
     target = scene.add_entity(
         gs.morphs.Box(
             size=TARGET_SIZE,
-            pos=(1.0, 0.4, TARGET_SIZE[2] / 2),
+            pos=(TARGET_DISTANCE, 0, TARGET_SIZE[2] / 2),
             collision=False,
             fixed=True
         ),
@@ -60,10 +60,10 @@ def main():
 
     # when loading an entity, you can specify its pose in the morph.
     current_dir = os.path.dirname(__file__)
-    path = os.path.join(current_dir, 'model/g1.xml')
+    path = os.path.join(current_dir, '../model/g1.xml')
     robot = scene.add_entity(
         gs.morphs.MJCF(
-            file=path
+            file=path,
         ),
     )
 
