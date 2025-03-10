@@ -23,9 +23,9 @@ class KickerEnv:
     def __init__(self, num_envs, env_cfg, obs_cfg, reward_cfg, command_cfg, show_viewer=False, device="mps", model_path="../model/g1.xml"):
         self.device = torch.device(device)
         self.ball_radius = 0.1
-        self.ball_position = torch.tensor([[0.4, -0.1, self.ball_radius]], device=self.device).cpu().numpy()
+        self.ball_position = torch.tensor([[0.2, -0.1, self.ball_radius]], device=self.device).cpu().numpy()
         self.target_size = (0.01, 1.0, 1.0)
-        self.target_distance = 2.0
+        self.target_distance = 0.5
 
         self.num_envs = num_envs
         self.num_obs = obs_cfg["num_obs"]
@@ -210,6 +210,8 @@ class KickerEnv:
         self.reset_buf |= torch.abs(self.base_euler[:, 0]) > self.env_cfg["termination_if_roll_greater_than"]
         self.reset_buf |= self.base_pos[:, 2] < self.env_cfg.get("termination_base_height", 0.4)
 
+        # self.reset_buf |= self.is_ball_hit_target()
+
         time_out_idx = (self.episode_length_buf > self.max_episode_length).nonzero(as_tuple=False).flatten()
         self.extras["time_outs"] = torch.zeros_like(self.reset_buf, device=self.device, dtype=gs.tc_float)
         self.extras["time_outs"][time_out_idx] = 1.0
@@ -232,6 +234,9 @@ class KickerEnv:
                 (self.dof_pos - self.default_dof_pos) * self.obs_scales["dof_pos"],  # 12
                 self.dof_vel * self.obs_scales["dof_vel"],  # 12
                 self.actions,  # 12
+                self.robot.get_pos(),  # 3
+                self.ball.get_pos(),  # 3
+                self.target.get_pos(),  # 3
             ],
             axis=-1,
         )
@@ -293,7 +298,7 @@ class KickerEnv:
         random_positions = []
         for _ in range(self.num_envs):
             # some randomness
-            pos = [random.uniform(0.4, 0.5), random.uniform(-0.2, 0.2), self.ball_radius]
+            pos = [random.uniform(0.1, 0.2), random.uniform(-0.1, 0.0), self.ball_radius]
             random_positions.append(pos)
         ball_positions = torch.tensor(random_positions, device=self.device).cpu().numpy()
         self.ball.set_pos(ball_positions, envs_idx=torch.arange(self.num_envs))
@@ -303,8 +308,67 @@ class KickerEnv:
         self.reset_idx(torch.arange(self.num_envs, device=self.device))
         return self.obs_buf, None
 
+    def is_ball_hit_target(self):
+        ball_pos = self.ball.get_pos()
+        target_pos = self.target.get_pos()
+
+        hit_x = (ball_pos[:, 0] - self.ball_radius <= target_pos[:, 0] + self.target_size[0] / 2) & \
+                (ball_pos[:, 0] + self.ball_radius >= target_pos[:, 0] - self.target_size[0] / 2)
+
+        hit_y = (ball_pos[:, 1] - self.ball_radius <= target_pos[:, 1] + self.target_size[1] / 2) & \
+                (ball_pos[:, 1] + self.ball_radius >= target_pos[:, 1] - self.target_size[1] / 2)
+
+        hit_z = (ball_pos[:, 2] - self.ball_radius <= target_pos[:, 2] + self.target_size[2] / 2) & \
+                (ball_pos[:, 2] + self.ball_radius >= target_pos[:, 2] - self.target_size[2] / 2)
+
+        return hit_x & hit_y & hit_z
+
     # ------------ reward functions----------------
     def _reward_forward_velocity(self):
         # Reward forward velocity (x-axis)
         forward_velocity = self.base_lin_vel[:, 0]
         return forward_velocity
+
+    def _reward_ball_hit_target(self):
+        hit = self.is_ball_hit_target()
+        return torch.where(hit, torch.ones((self.num_envs,), device=self.device, dtype=gs.tc_float), torch.zeros((self.num_envs,), device=self.device, dtype=gs.tc_float))
+
+    def _reward_ball_distance_from_target(self):
+        ball_pos = self.ball.get_pos()
+        target_pos = self.target.get_pos()
+        ball_distance = torch.norm(ball_pos - target_pos, dim=-1)
+        # ball_distance = torch.nan_to_num(ball_distance, nan=10.0)
+        return -ball_distance
+
+    def _reward_episode_length(self):
+        return -1.0
+
+    def _reward_base_height(self):
+        return -self.base_pos[:, 2]
+
+    def _reward_survival_time(self):
+        return torch.ones(self.num_envs, device=self.device)
+
+    def _reward_energy_efficiency(self):
+        energy_efficiency = torch.sum(torch.square(self.actions), dim=1)
+        return -energy_efficiency
+
+    def _reward_stability(self):
+        roll_pitch_error = torch.square(self.base_euler[:, 0]) + torch.square(self.base_euler[:, 1])
+        return torch.exp(-roll_pitch_error)
+
+    # penalize if both feet are in contact
+    def _reward_foot_contact(self):
+        left_foot_link_name = "left_ankle_roll_link"
+        right_foot_link_name = "right_ankle_roll_link"
+
+        left_foot_entity = self.robot.get_link(left_foot_link_name)
+        right_foot_entity = self.robot.get_link(right_foot_link_name)
+
+        left_foot_contacts = self.robot.get_contacts(with_entity=left_foot_entity)
+        right_foot_contacts = self.robot.get_contacts(with_entity=right_foot_entity)
+
+        left_foot_in_contact = torch.tensor(left_foot_contacts["valid_mask"], device=self.device).any(dim=1).float()
+        right_foot_in_contact = torch.tensor(right_foot_contacts["valid_mask"], device=self.device).any(dim=1).float()
+        
+        return -(left_foot_in_contact * right_foot_in_contact)

@@ -18,7 +18,7 @@ def get_train_cfg(exp_name, max_iterations):
             "entropy_coef": 0.01,
             "gamma": 0.99,
             "lam": 0.95,
-            "learning_rate": 0.001,
+            "learning_rate": 1e-3,
             "max_grad_norm": 1.0,
             "num_learning_epochs": 5,
             "num_mini_batches": 4,
@@ -45,7 +45,7 @@ def get_train_cfg(exp_name, max_iterations):
             "resume": False,
             "resume_path": None,
             "run_name": "",
-            "save_interval": 500,
+            "save_interval": 50,
         },
         "runner_class_name": "OnPolicyRunner",
         "seed": 1,
@@ -101,9 +101,9 @@ def get_cfgs():
             "right_elbow_joint", "right_wrist_roll_joint", "right_wrist_pitch_joint", "right_wrist_yaw_joint"
         ],
         # PD
-        "kp": 100.0,
-        "kd": 5.0,
-        "force_range": 80.0,
+        "kp": 50.0,
+        "kd": 2.5,
+        "force_range": 40.0,
         # termination
         "termination_base_height": 0.4,
         "termination_if_roll_greater_than": 60,  # degree
@@ -111,14 +111,14 @@ def get_cfgs():
         # base pose
         "base_init_pos": [0.0, 0.0, 0.8],
         "base_init_quat": [1.0, 0.0, 0.0, 0.0],
-        "episode_length_s": 20.0,
+        "episode_length_s": 10.0,
         "resampling_time_s": 4.0,
         "action_scale": 1.0,
         "simulate_action_latency": True,
         "clip_actions": 10.0,
     }
     obs_cfg = {
-        "num_obs": 96,
+        "num_obs": 105,
         "obs_scales": {
             "lin_vel": 1.0,
             "ang_vel": 0.5,
@@ -128,7 +128,13 @@ def get_cfgs():
     }
     reward_cfg = {
         "reward_scales": {
-            "forward_velocity": 1.0
+            # "ball_hit_target": 10.0,
+            # "ball_distance_from_target": 0.1,
+            # "episode_length": 0.1,
+            "base_height": 0.2,
+            "survival_time": 2.0,
+            "energy_efficiency": 1.0,
+            "stability": 0.4,
         },
     }
     command_cfg = {
@@ -143,7 +149,7 @@ def get_cfgs():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-e", "--exp_name", type=str, default="runner")
+    parser.add_argument("-e", "--exp_name", type=str, default="kicker")
     parser.add_argument("-B", "--num_envs", type=int, default=2048)
     parser.add_argument("--max_iterations", type=int, default=1000)
     args = parser.parse_args()
@@ -179,5 +185,5 @@ if __name__ == "__main__":
 
 """
 # training
-python src/train.py -e kicker --max_iterations 20000
+python src/train.py -e stand --max_iterations 20000
 """

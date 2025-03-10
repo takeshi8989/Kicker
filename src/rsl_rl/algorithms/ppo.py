@@ -47,7 +47,7 @@ class PPO:
                  value_loss_coef=1.0,
                  entropy_coef=0.0,
                  learning_rate=1e-3,
-                 max_grad_norm=1.0,
+                 max_grad_norm=0.5,
                  use_clipped_value_loss=True,
                  schedule="fixed",
                  desired_kl=0.01,
@@ -152,7 +152,7 @@ class PPO:
 
 
                 # Surrogate loss
-                ratio = torch.exp(actions_log_prob_batch - torch.squeeze(old_actions_log_prob_batch))
+                ratio = torch.exp(actions_log_prob_batch - torch.squeeze(old_actions_log_prob_batch) + 1e-8)
                 surrogate = -torch.squeeze(advantages_batch) * ratio
                 surrogate_clipped = -torch.squeeze(advantages_batch) * torch.clamp(ratio, 1.0 - self.clip_param,
                                                                                 1.0 + self.clip_param)
