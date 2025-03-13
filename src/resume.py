@@ -97,5 +97,5 @@ if __name__ == "__main__":
 
 """
 # Resume training with updated reward functions
-python src/resume.py -e stand -n kicker --resume_ckpt 300 --max_iterations 20000
+python src/resume.py -e stand -n step --resume_ckpt 400 --max_iterations 20000
 """

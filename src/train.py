@@ -4,6 +4,7 @@ import pickle
 import shutil
 
 from env import KickerEnv
+from curriculum import get_reward_scales
 from rsl_rl.runners import OnPolicyRunner
 
 import genesis as gs
@@ -161,6 +162,7 @@ def main():
 
     env_cfg, obs_cfg, reward_cfg, command_cfg = get_cfgs()
     train_cfg = get_train_cfg(args.exp_name, args.max_iterations)
+    reward_cfg["reward_scales"] = get_reward_scales(args.exp_name)
 
     if os.path.exists(log_dir):
         shutil.rmtree(log_dir)

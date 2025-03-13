@@ -23,7 +23,7 @@ class KickerEnv:
     def __init__(self, num_envs, env_cfg, obs_cfg, reward_cfg, command_cfg, show_viewer=False, device="mps", model_path="../model/g1.xml"):
         self.device = torch.device(device)
         self.ball_radius = 0.1
-        self.ball_position = torch.tensor([[0.2, -0.1, self.ball_radius]], device=self.device).cpu().numpy()
+        self.ball_position = torch.tensor([[0.2, -0.2, self.ball_radius]], device=self.device).cpu().numpy()
         self.target_size = (0.01, 1.0, 1.0)
         self.target_distance = 0.5
 
@@ -298,7 +298,7 @@ class KickerEnv:
         random_positions = []
         for _ in range(self.num_envs):
             # some randomness
-            pos = [random.uniform(0.1, 0.2), random.uniform(-0.1, 0.0), self.ball_radius]
+            pos = [random.uniform(0.1, 0.11), random.uniform(-0.15, -0.16), self.ball_radius]
             random_positions.append(pos)
         ball_positions = torch.tensor(random_positions, device=self.device).cpu().numpy()
         self.ball.set_pos(ball_positions, envs_idx=torch.arange(self.num_envs))
@@ -331,7 +331,9 @@ class KickerEnv:
 
     def _reward_ball_hit_target(self):
         hit = self.is_ball_hit_target()
-        return torch.where(hit, torch.ones((self.num_envs,), device=self.device, dtype=gs.tc_float), torch.zeros((self.num_envs,), device=self.device, dtype=gs.tc_float))
+        # the faster the ball hits the target, the higher the reward
+        ball_velocity = torch.norm(self.ball.get_vel(), dim=-1)
+        return torch.where(hit, ball_velocity, torch.zeros((self.num_envs,), device=self.device, dtype=gs.tc_float))
 
     def _reward_ball_distance_from_target(self):
         ball_pos = self.ball.get_pos()
@@ -370,5 +372,26 @@ class KickerEnv:
 
         left_foot_in_contact = torch.tensor(left_foot_contacts["valid_mask"], device=self.device).any(dim=1).float()
         right_foot_in_contact = torch.tensor(right_foot_contacts["valid_mask"], device=self.device).any(dim=1).float()
-        
+
         return -(left_foot_in_contact * right_foot_in_contact)
+
+    def _reward_leg_swing(self):
+        # Get the hip and knee joint actions for both legs.
+        left_hip = self.actions[:, self.env_cfg["dof_names"].index("left_hip_pitch_joint")]
+        right_hip = self.actions[:, self.env_cfg["dof_names"].index("right_hip_pitch_joint")]
+        left_knee = self.actions[:, self.env_cfg["dof_names"].index("left_knee_joint")]
+        right_knee = self.actions[:, self.env_cfg["dof_names"].index("right_knee_joint")]
+
+        # Encourage symmetrical movement:
+        # If the left and right joints move in opposite directions, the sum will be near zero.
+        hip_symmetry_penalty = torch.abs(left_hip + right_hip)
+        knee_symmetry_penalty = torch.abs(left_knee + right_knee)
+
+        # Optionally, reward overall movement magnitude (i.e., being dynamic).
+        hip_magnitude = torch.abs(left_hip) + torch.abs(right_hip)
+        knee_magnitude = torch.abs(left_knee) + torch.abs(right_knee)
+
+        # Combine the terms: the idea is to reward high movement magnitude while penalizing asymmetry.
+        # You can tune these coefficients as needed.
+        reward = hip_magnitude + knee_magnitude - (hip_symmetry_penalty + knee_symmetry_penalty)
+        return reward

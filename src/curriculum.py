@@ -5,21 +5,23 @@ stand = {
     "stability": 0.4,
 }
 
+
 step = {
     "base_height": 0.2,
-    "survival_time": 1.0,
-    "energy_efficiency": 0.2,
+    "survival_time": 1.2,
     "stability": 0.2,
-    "foot_contact": 0.6,
+    "foot_contact": 0.5,
+    "leg_swing": 0.5,
 }
 
+
 kicker_v1 = {
-    "ball_hit_target": 10.0,
-    "base_height": 0.2,
-    "survival_time": 1.0,
-    "energy_efficiency": 0.2,
-    "stability": 0.2,
-    "foot_contact": 0.6,
+    "ball_hit_target": 50000.0,
+    "base_height": 0.001,
+    "survival_time": 0.4,
+    "energy_efficiency": 0.001,
+    "stability": 0.001,
+    "foot_contact": 0.1,
 }
 
 
