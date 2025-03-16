@@ -333,7 +333,7 @@ class KickerEnv:
         hit = self.is_ball_hit_target()
         # the faster the ball hits the target, the higher the reward
         ball_velocity = torch.norm(self.ball.get_vel(), dim=-1)
-        return torch.where(hit, ball_velocity, torch.zeros((self.num_envs,), device=self.device, dtype=gs.tc_float))
+        return torch.where(hit, ball_velocity, torch.zeros((self.num_envs,), device=self.device))
 
     def _reward_ball_distance_from_target(self):
         ball_pos = self.ball.get_pos()
